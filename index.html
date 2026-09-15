@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>ROLL 1dEVERYTHING</title>
+<style>
+  :root{--ink:#080907;--cream:#e9d59a;--green:#5d9855;--red:#d5563f;--dim:#34382d}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--ink);color:var(--cream);font-family:monospace;touch-action:manipulation}
+  #game{width:min(100vw,736px);margin:0 auto;padding:8px}
+  canvas{display:block;width:100%;aspect-ratio:2/1;image-rendering:pixelated;background:var(--ink);border:2px solid var(--cream)}
+  #log{min-height:42px;margin-top:8px;font:700 14px/1.25 monospace;display:flex;align-items:center}
+  #rollSpace{position:relative;width:100%;height:104px;margin-top:2px;overflow:hidden;background:transparent;border:0;outline:0}
+  #die{position:absolute;left:0;top:2px;width:100px;height:100px;border:0;outline:0;background:var(--cream);padding:0;margin:0;cursor:pointer;box-shadow:none;border-radius:10px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  #die:disabled{opacity:1}
+  .pip{position:absolute;width:16px;height:16px;background:var(--ink);border-radius:50%;display:none;transform:translate(-50%,-50%);pointer-events:none}
+  .p1{left:25%;top:25%}.p2{left:50%;top:25%}.p3{left:75%;top:25%}
+  .p4{left:25%;top:50%}.p5{left:50%;top:50%}.p6{left:75%;top:50%}
+  .p7{left:25%;top:75%}.p8{left:50%;top:75%}.p9{left:75%;top:75%}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv" width="320" height="160" aria-label="ROLL 1dEVERYTHING"></canvas>
+  <div id="log" aria-live="polite">Tap the die.</div>
+  <div id="rollSpace">
+    <button id="die" type="button" aria-label="Roll die">
+      <span class="pip p1"></span><span class="pip p2"></span><span class="pip p3"></span>
+      <span class="pip p4"></span><span class="pip p5"></span><span class="pip p6"></span>
+      <span class="pip p7"></span><span class="pip p8"></span><span class="pip p9"></span>
+    </button>
+  </div>
+</div>
+<script>
+(()=>{
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),space=document.getElementById('rollSpace'),die=document.getElementById('die'),log=document.getElementById('log'),pips=[...document.querySelectorAll('.pip')];
+const C={k:'#080907',cream:'#e9d59a',green:'#5d9855',red:'#d5563f',dim:'#34382d'};
+const T=16,W=13,H=8,PANEL=W*T;
+const ACTION=['MOVE','MOVE','SEARCH','ATTACK','ATTACK','REST'];
+const FACE={1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]};
+const MAP=['#############','#...........#','#.###..##...#','#.....#.....#','#..##....#..#','#.......##..#','#...........#','#############'];
+const LEVELS=[
+ {name:'THE DAMP FOYER',food:[{x:3,y:1}],coin:[{x:10,y:1}],items:[{x:2,y:6,t:'charm',name:'LUCKY RABBIT FOOT'}],exit:{x:11,y:6},traps:[{x:5,y:5,shown:true}],enemies:[{x:6,y:1,hp:4,t:'g',name:'GOBLIN INTERN'},{x:9,y:4,hp:4,t:'w',name:'APPRENTICE WIZARD'}]},
+ {name:'THE QUESTIONABLE LOUNGE',food:[{x:2,y:6}],coin:[{x:9,y:1}],items:[{x:5,y:6,t:'curse',name:'CURSED TIARA'},{x:10,y:5,t:'ring',name:'RING OF PROBABLY FORTUNE'}],exit:{x:11,y:6},traps:[{x:8,y:5,shown:false}],enemies:[{x:6,y:1,hp:5,t:'j',name:'SAUCY ENCHANTRESS'},{x:9,y:4,hp:7,t:'t',name:'TROLL TOLL COLLECTOR'}]},
+ {name:'HUMAN RESOURCES',food:[{x:10,y:1}],coin:[{x:2,y:6}],items:[{x:4,y:5,t:'orb',name:'ORB OF BETTER ODDS'}],exit:{x:11,y:6},traps:[{x:7,y:6,shown:true}],enemies:[{x:6,y:1,hp:8,t:'n',name:'NECROMANCER'},{x:9,y:4,hp:10,t:'b',name:'DUNGEON MANAGER'}]}
+];
+let S,rolling=false,side='left',audio=null;
+const dist=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
+const wall=(x,y)=>x<0||y<0||x>=W||y>=H||MAP[y][x]==='#';
+function setFace(n){pips.forEach((p,i)=>p.style.display=FACE[n].includes(i+1)?'block':'none')}
+function tone(f,d=.05,type='square',vol=.024,slide=0){try{if(!audio)audio=new(window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.setValueAtTime(f,audio.currentTime);if(slide)o.frequency.linearRampToValueAtTime(Math.max(40,f+slide),audio.currentTime+d);g.gain.setValueAtTime(vol,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+d)}catch(e){}}
+function sfx(kind){if(kind==='roll'){tone(145,.035,'square',.023,90);setTimeout(()=>tone(210,.035,'square',.02,110),40);setTimeout(()=>tone(290,.04,'square',.018,130),80)}else if(kind==='land'){tone(390,.055,'triangle',.032,-30);setTimeout(()=>tone(620,.08,'square',.021,40),45)}else if(kind==='move')tone(130,.04,'square',.018,25);else if(kind==='attack')tone(90,.09,'sawtooth',.026,-25);else if(kind==='search')tone(760,.08,'triangle',.018,-240);else if(kind==='rest')tone(240,.11,'triangle',.018,75);else if(kind==='hurt')tone(70,.12,'square',.03,-25);else if(kind==='reward')tone(520,.1,'square',.02,80);}
+function resetRun(){S={depth:0,p:{x:1,y:1},hp:10,max:10,atk:2,arm:0,gold:0,luck:0,turn:0,last:0,mode:'play',msg:'Tap the die.',food:[],coin:[],items:[],exit:null,traps:[],enemies:[],charmed:0};side='left';loadDepth();die.style.left='0px';die.style.transform='rotate(0deg)';setFace(1);say('Tap the die.');}
+function loadDepth(){const L=LEVELS[S.depth];S.p={x:1,y:1};S.food=L.food.map(v=>({...v}));S.coin=L.coin.map(v=>({...v}));S.items=L.items.map(v=>({...v}));S.exit={...L.exit};S.traps=L.traps.map(v=>({...v}));S.enemies=L.enemies.map(v=>({...v,max:v.hp}));S.mode='play';S.last=0;S.charmed=0;draw();}
+const enemyAt=(x,y)=>S.enemies.find(e=>e.x===x&&e.y===y);
+const trapAt=(x,y)=>S.traps.find(t=>t.shown&&t.x===x&&t.y===y);
+const itemAt=(x,y)=>S.items.find(i=>i.x===x&&i.y===y);
+function enemyDistance(p){return S.enemies.length?Math.min(...S.enemies.map(e=>dist(p,e))):99}
+function mood(){const q=S.hp/S.max;return q<.25?'PANIC':q<=.5?'WARY':'BOLD'}
+function bfs(target,adj=false,avoidTraps=true){const q=[{x:S.p.x,y:S.p.y,first:null}],seen=new Set([S.p.x+','+S.p.y]),dirs=[[0,-1],[1,0],[0,1],[-1,0]];while(q.length){const n=q.shift();if((!adj&&n.x===target.x&&n.y===target.y)||(adj&&dist(n,target)===1))return n.first;for(const[dx,dy]of dirs){const nx=n.x+dx,ny=n.y+dy,k=nx+','+ny;if(seen.has(k)||wall(nx,ny))continue;if(avoidTraps&&trapAt(nx,ny)&&!(nx===target.x&&ny===target.y))continue;const e=enemyAt(nx,ny);if(e&&!(adj&&e===target))continue;seen.add(k);q.push({x:nx,y:ny,first:n.first||{x:nx,y:ny}})}}return null}
+function neighbours(){return [[0,-1],[1,0],[0,1],[-1,0]].map(([dx,dy])=>({x:S.p.x+dx,y:S.p.y+dy})).filter(p=>!wall(p.x,p.y)&&!enemyAt(p.x,p.y))}
+function chooseMove(){const m=mood(),near=enemyDistance(S.p);if(m==='PANIC'&&near<=3){const ex=bfs(S.exit,false,true);if(ex&&enemyDistance(ex)>1)return{step:ex,why:'Low health — fleeing to Exit.'};const food=[];for(const f of S.food){const step=bfs(f,false,true);if(step)food.push({step,d:dist(S.p,f)})}food.sort((a,b)=>a.d-b.d);if(food[0])return{step:food[0].step,why:'Low health — seeking Food.'};const n=neighbours().filter(p=>!trapAt(p.x,p.y)).sort((a,b)=>enemyDistance(b)-enemyDistance(a));if(n[0])return{step:n[0],why:'Low health — avoiding Enemy.'};}
+if(S.charmed>0){const lady=S.enemies.find(e=>e.t==='j');if(lady){const step=bfs(lady,true,true);if(step)return{step,why:'Charmed — pursuing Saucy Enchantress.'}}}
+const goals=[];if(S.hp<S.max)S.food.forEach(v=>goals.push({rank:0,type:'Food',obj:v}));S.coin.forEach(v=>goals.push({rank:1,type:'Coin',obj:v}));goals.push({rank:2,type:'Exit',obj:S.exit});S.items.forEach(v=>goals.push({rank:2.5,type:'Magic',obj:v}));S.enemies.forEach(v=>goals.push({rank:3,type:'Enemy',obj:v,adj:true}));const ok=[];for(const g of goals){const step=bfs(g.obj,!!g.adj,true);if(step)ok.push({...g,step,d:dist(S.p,g.obj)})}ok.sort((a,b)=>a.rank-b.rank||a.d-b.d);if(ok[0])return{step:ok[0].step,why:ok[0].type==='Food'?'Injured — heading for Food.':ok[0].type==='Coin'?'Healthy — pursuing Coin.':ok[0].type==='Exit'?'Heading for Exit.':ok[0].type==='Magic'?'Magic nearby — investigating.':'Closing on Enemy.'};const n=neighbours().filter(p=>!trapAt(p.x,p.y));return n[0]?{step:n[0],why:'Choosing safe Floor.'}:null;}
+function collect(){let i=S.food.findIndex(v=>v.x===S.p.x&&v.y===S.p.y);if(i>=0){const old=S.hp;S.hp=Math.min(S.max,S.hp+4);S.food.splice(i,1);S.msg+=' Food +'+(S.hp-old)+' HP.';}i=S.coin.findIndex(v=>v.x===S.p.x&&v.y===S.p.y);if(i>=0){S.coin.splice(i,1);S.gold++;S.msg+=' Coin collected.';}const it=itemAt(S.p.x,S.p.y);if(it){if(it.t==='curse'){S.luck-=2;S.msg+=' Curse: Luck -2.'}else if(it.t==='ring'){S.luck+=2;S.msg+=' Ring: Luck +2.'}else if(it.t==='orb'){S.luck+=1;S.atk++;S.msg+=' Orb: Luck +1, ATK +1.'}else{S.luck++;S.msg+=' Charm: Luck +1.'}S.items=S.items.filter(v=>v!==it);sfx('reward')}const tr=trapAt(S.p.x,S.p.y);if(tr){let d=3;if(S.luck>=2&&Math.random()<.35){d=0;S.msg+=' Luck avoids the Trap.'}S.hp-=d;S.traps=S.traps.filter(v=>v!==tr);if(d){S.msg+=' Trap! -'+d+' HP.';sfx('hurt')}}if(S.p.x===S.exit.x&&S.p.y===S.exit.y){if(S.depth<LEVELS.length-1){S.depth++;S.msg='Descending deeper.';loadDepth()}else{S.mode='win';S.msg='Escaped the dungeon.'}}}
+function doMove(){const m=chooseMove();if(!m){S.msg='Nowhere useful to go.';return}S.p={...m.step};S.msg=m.why;sfx('move');collect()}
+function doSearch(){let found=0;for(const t of S.traps)if(!t.shown&&dist(S.p,t)<=3+(S.luck>=2?1:0)){t.shown=true;found++}if(found===0&&S.luck>0&&Math.random()<Math.min(.5,.18*S.luck)){S.gold++;S.msg='Lucky find: +1 Gold.';found=1}else if(found)S.msg='Revealed '+found+' hidden danger.';else S.msg='Nothing useful nearby.';sfx('search')}
+function doAttack(){const near=S.enemies.filter(e=>dist(S.p,e)===1).sort((a,b)=>a.hp-b.hp);if(!near.length){S.msg='No Enemy adjacent.';sfx('attack');return}const e=near[0];let d=S.atk;if(S.luck>0&&Math.random()<.08*S.luck)d++;e.hp-=d;S.msg=e.name+' takes '+d+' damage.';sfx('attack');if(e.hp<=0){S.enemies=S.enemies.filter(v=>v!==e);S.mode='reward';S.msg=e.name+' defeated — next roll is reward.';sfx('reward')}}
+function doRest(){const old=S.hp;S.hp=Math.min(S.max,S.hp+3+(S.luck>=3?1:0));S.msg='Recovered '+(S.hp-old)+' HP.';sfx('rest')}
+function monsterTurn(){if(S.mode!=='play')return;const dirs=[[0,-1],[1,0],[0,1],[-1,0]];for(const e of [...S.enemies]){if(e.t==='j'&&dist(e,S.p)<=3){S.charmed=2;S.msg+=' Saucy Enchantress charms the hero.'}if(e.t==='w'&&(e.x===S.p.x||e.y===S.p.y)){S.hp-=1;S.msg+=' Wizard zaps -1 HP.';continue}if(e.t==='t'&&e.hp<e.max&&S.turn%2===0)e.hp++;if(e.t==='n'&&S.turn%3===0&&S.enemies.length<5){const spot=dirs.map(([dx,dy])=>({x:e.x+dx,y:e.y+dy})).find(p=>!wall(p.x,p.y)&&!enemyAt(p.x,p.y)&&!(p.x===S.p.x&&p.y===S.p.y));if(spot){S.enemies.push({x:spot.x,y:spot.y,hp:3,max:3,t:'s',name:'REHIRED SKELETON'});S.msg+=' Necromancer rehires staff.';continue}}if(dist(e,S.p)===1){let d=Math.max(1,2-S.arm);if(S.luck>0&&Math.random()<.05*S.luck)d=0;S.hp-=d;S.msg+=' '+e.name+(d?' hits '+d+'.':' misses thanks to Luck.');if(d)sfx('hurt');continue}const opts=dirs.map(([dx,dy])=>({x:e.x+dx,y:e.y+dy})).filter(p=>!wall(p.x,p.y)&&!enemyAt(p.x,p.y)&&!(p.x===S.p.x&&p.y===S.p.y));opts.sort((a,b)=>dist(a,S.p)-dist(b,S.p));if(opts[0]&&dist(opts[0],S.p)<dist(e,S.p)){e.x=opts[0].x;e.y=opts[0].y}}if(S.charmed>0)S.charmed--;if(S.hp<=0){S.hp=0;S.mode='dead';S.msg='YOU DIED.'}}
+function actionRoll(){let r=1+Math.floor(Math.random()*6);if(S.luck>=3&&Math.random()<.12){const good=[1,2,4,5,6];r=good[Math.floor(Math.random()*good.length)]}if(S.luck<=-3&&Math.random()<.12)r=3;return r}
+function rewardRoll(){let r=1+Math.floor(Math.random()*6);if(S.luck>0&&Math.random()<Math.min(.5,.1*S.luck))r=Math.min(6,r+1);if(S.luck<0&&Math.random()<Math.min(.5,.1*Math.abs(S.luck)))r=Math.max(1,r-1);return r}
+function resolve(n,rewardMode){S.last=n;if(rewardMode){const names=['','Rusty Sword +1 ATK','Questionable Mail +1 ARM','Mystery Pie +4 HP','Petty Cash +3 Gold','Lucky Charm +1 Luck','Full Restore'];if(n===1)S.atk++;if(n===2)S.arm++;if(n===3)S.hp=Math.min(S.max,S.hp+4);if(n===4)S.gold+=3;if(n===5)S.luck++;if(n===6)S.hp=S.max;S.mode='play';S.msg=names[n]+'.';draw();say(S.msg+'  TAP AGAIN.');return}S.turn++;const a=ACTION[n-1];if(a==='MOVE')doMove();else if(a==='SEARCH')doSearch();else if(a==='ATTACK')doAttack();else doRest();if(S.mode==='play')monsterTurn();draw();say(S.msg+'  TAP AGAIN.');}
+function rollDie(){if(rolling)return;if(S.mode==='dead'||S.mode==='win'){resetRun();return}rolling=true;die.disabled=true;const rewardMode=S.mode==='reward',n=rewardMode?rewardRoll():actionRoll(),left=0,right=Math.max(0,space.clientWidth-100),from=side==='left'?left:right,to=side==='left'?right:left,start=performance.now(),dur=720;sfx('roll');function frame(now){const t=Math.min(1,(now-start)/dur),e=1-Math.pow(1-t,3);die.style.left=(from+(to-from)*e)+'px';die.style.transform='rotate('+(t*720*(side==='left'?1:-1))+'deg)';setFace(1+Math.floor(((now-start)/60)%6));if(t<1){requestAnimationFrame(frame)}else{side=side==='left'?'right':'left';die.style.left=to+'px';die.style.transform='rotate(0deg)';setFace(n);sfx('land');resolve(n,rewardMode);rolling=false;die.disabled=false}}requestAnimationFrame(frame)}
+function say(t){log.textContent=t}
+function R(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h)}
+function sprite(kind,x,y){const P={hero:['001100','011110','011100','001100','011110','101101','001100'],g:['100001','011110','111111','101101','011110','101101'],w:['001100','011110','001100','011110','101101','001100'],j:['011110','001100','011110','111111','001100','101101'],t:['111111','101101','111111','011110','101101','101101'],n:['011110','110011','011110','001100','111111','101101'],s:['011110','110011','011110','001100','011110','101101'],b:['111111','101101','111111','011110','111111','101101'],food:['001100','011110','111111','011110'],coin:['0110','1001','1011','0110'],exit:['111111','100001','101101','100001','111111'],trap:['001100','011110','111111','011110','101101'],magic:['001100','011110','111111','011110','001100']};const a=P[kind]||P.g;let col=(kind==='hero'||kind==='s'||kind==='coin'||kind==='exit'||kind==='magic')?C.cream:(kind==='food'?C.green:C.red);for(let j=0;j<a.length;j++)for(let i=0;i<a[j].length;i++)if(a[j][i]==='1')R(x+i*2,y+j*2,2,2,col);if(kind==='hero'){R(x+2,y,8,2,C.green);R(x+10,y+4,2,4,C.green)}}
+function draw(){R(0,0,320,160,C.k);const stats=['HP '+S.hp+'/'+S.max,'ATK '+S.atk,'ARM '+S.arm,'$ '+S.gold,'LUCK '+(S.luck>=0?'+':'')+S.luck,'TURN '+S.turn];ctx.font='bold 7px monospace';ctx.textBaseline='top';ctx.textAlign='center';for(let i=0;i<6;i++){ctx.fillStyle=i===0?C.green:C.cream;ctx.fillText(stats[i],(i+.5)*(320/6),4)}ctx.textAlign='left';for(let y=0;y<H;y++)for(let x=0;x<W;x++){const X=x*T,Y=16+y*T;if(wall(x,y)){R(X,Y,T,T,C.cream);R(X+2,Y+2,5,3,C.dim);R(X+9,Y+8,5,3,C.dim)}else{R(X,Y,T,T,'#10110e');R(X+7,Y+7,1,1,C.dim)}}for(const f of S.food)sprite('food',f.x*T+3,16+f.y*T+4);for(const q of S.coin)sprite('coin',q.x*T+4,16+q.y*T+4);for(const i of S.items)sprite('magic',i.x*T+3,16+i.y*T+3);sprite('exit',S.exit.x*T+2,16+S.exit.y*T+2);for(const t of S.traps.filter(v=>v.shown))sprite('trap',t.x*T+2,16+t.y*T+2);for(const e of S.enemies)sprite(e.t,e.x*T+2,16+e.y*T+2);sprite('hero',S.p.x*T+2,16+S.p.y*T+1);R(PANEL,16,320-PANEL,128,C.k);ctx.strokeStyle=C.cream;ctx.strokeRect(PANEL+1,17,320-PANEL-2,126);ctx.font='bold 9px monospace';const verbs=['1 MOVE','2 MOVE','3 SEARCH','4 ATTACK','5 ATTACK','6 REST'];verbs.forEach((v,i)=>{const yy=28+i*18;if(S.last===i+1){R(PANEL+6,yy-2,72,13,C.cream);ctx.fillStyle=C.k}else ctx.fillStyle=C.cream;ctx.fillText(v,PANEL+10,yy)})}
+die.addEventListener('click',rollDie);
+resetRun();
+})();
+</script>
+</body></html>
