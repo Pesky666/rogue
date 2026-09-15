@@ -37,6 +37,7 @@ canvas{display:block;width:100%;aspect-ratio:2/1;image-rendering:pixelated;backg
 'use strict';
 const cv=document.getElementById('cv');
 const ctx=cv.getContext('2d');
+ctx.imageSmoothingEnabled=false;
 const space=document.getElementById('rollSpace');
 const die=document.getElementById('die');
 const log=document.getElementById('log');
@@ -51,6 +52,62 @@ const LEVELS=[
  {name:'THE QUESTIONABLE LOUNGE',food:[{x:2,y:6}],coin:[{x:9,y:1}],items:[{x:5,y:6,t:'curse',name:'CURSED TIARA'},{x:10,y:5,t:'ring',name:'RING OF PROBABLY FORTUNE'}],exit:{x:11,y:6},traps:[{x:8,y:5,shown:false}],enemies:[{x:6,y:1,hp:5,t:'j',name:'SAUCY ENCHANTRESS'},{x:9,y:4,hp:7,t:'t',name:'TROLL TOLL COLLECTOR'}]},
  {name:'HUMAN RESOURCES',food:[{x:10,y:1}],coin:[{x:2,y:6}],items:[{x:4,y:5,t:'orb',name:'ORB OF BETTER ODDS'}],exit:{x:11,y:6},traps:[{x:7,y:6,shown:true}],enemies:[{x:6,y:1,hp:8,t:'n',name:'NECROMANCER'},{x:9,y:4,hp:10,t:'b',name:'DUNGEON MANAGER'}]}
 ];
+
+// Hexany Ives, Hexany's Roguelike Tiles 0.3.0 — CC0 1.0.
+// Pinned mirror commit so the art does not silently change underneath the build.
+const HEX_BASE='https://raw.githubusercontent.com/luciusmagn/immortal-coil/94f942b0b412b5e55748c2eade0e71f204e2011d/assets/tiles/hexany/Tilesheets/Transparent/';
+const HEX_URL={
+ creatures:HEX_BASE+'creatures_transparent.png',
+ general:HEX_BASE+'general_transparent.png',
+ items:HEX_BASE+'items_transparent.png'
+};
+const HEX_COLS={creatures:16,general:32,items:24};
+const HEX_TILE={
+ hero:{sheet:'creatures',i:0,tint:C.cream},
+ g:{sheet:'creatures',i:54,tint:C.red},
+ w:{sheet:'creatures',i:56,tint:C.red},
+ j:{sheet:'creatures',i:10,tint:C.red},
+ t:{sheet:'creatures',i:64,tint:C.red},
+ n:{sheet:'creatures',i:112,tint:C.red},
+ s:{sheet:'creatures',i:96,tint:C.cream},
+ b:{sheet:'creatures',i:240,tint:C.red},
+ food:{sheet:'items',i:58,tint:C.green},
+ coin:{sheet:'items',i:85,tint:C.cream},
+ charm:{sheet:'items',i:37,tint:C.cream},
+ curse:{sheet:'items',i:95,tint:C.red},
+ ring:{sheet:'items',i:100,tint:C.cream},
+ orb:{sheet:'items',i:104,tint:C.green},
+ exit:{sheet:'general',i:2,tint:C.cream},
+ trap:{sheet:'general',i:58,tint:C.red}
+};
+const HEX_IMG={};
+const tintCanvas=document.createElement('canvas');
+tintCanvas.width=tintCanvas.height=16;
+const tintCtx=tintCanvas.getContext('2d');
+tintCtx.imageSmoothingEnabled=false;
+for(const [key,src] of Object.entries(HEX_URL)){
+ const img=new Image();
+ img.crossOrigin='anonymous';
+ img.onload=()=>draw();
+ img.onerror=()=>console.warn('Hexany sheet failed to load:',key);
+ img.src=src;
+ HEX_IMG[key]=img;
+}
+function drawHex(sheet,index,x,y,tint){
+ const img=HEX_IMG[sheet];
+ if(!img||!img.complete||!img.naturalWidth)return false;
+ const cols=HEX_COLS[sheet],sx=(index%cols)*16,sy=Math.floor(index/cols)*16;
+ tintCtx.clearRect(0,0,16,16);
+ tintCtx.globalCompositeOperation='source-over';
+ tintCtx.drawImage(img,sx,sy,16,16,0,0,16,16);
+ tintCtx.globalCompositeOperation='source-in';
+ tintCtx.fillStyle=tint;
+ tintCtx.fillRect(0,0,16,16);
+ tintCtx.globalCompositeOperation='source-over';
+ ctx.drawImage(tintCanvas,x,y,16,16);
+ return true;
+}
+
 let S,rolling=false,side='left',dieX=0,audio=null;
 const dist=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const wall=(x,y)=>x<0||y<0||x>=W||y>=H||MAP[y][x]==='#';
@@ -86,8 +143,10 @@ function handlePointer(ev){ev.preventDefault();rollDie()}
 die.addEventListener('pointerup',handlePointer,{passive:false});
 die.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();rollDie()}});
 function R(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h)}
-function sprite(kind,x,y){const P={hero:['001100','011110','011100','001100','011110','101101','001100'],g:['100001','011110','111111','101101','011110','101101'],w:['001100','011110','001100','011110','101101','001100'],j:['011110','001100','011110','111111','001100','101101'],t:['111111','101101','111111','011110','101101','101101'],n:['011110','110011','011110','001100','111111','101101'],s:['011110','110011','011110','001100','011110','101101'],b:['111111','101101','111111','011110','111111','101101'],food:['001100','011110','111111','011110'],coin:['0110','1001','1011','0110'],exit:['111111','100001','101101','100001','111111'],trap:['001100','011110','111111','011110','101101'],magic:['001100','011110','111111','011110','001100']};const a=P[kind]||P.g;let col=(kind==='hero'||kind==='s'||kind==='coin'||kind==='exit'||kind==='magic')?C.cream:(kind==='food'?C.green:C.red);for(let j=0;j<a.length;j++)for(let i=0;i<a[j].length;i++)if(a[j][i]==='1')R(x+i*2,y+j*2,2,2,col);if(kind==='hero'){R(x+2,y,8,2,C.green);R(x+10,y+4,2,4,C.green)}}
-function draw(){R(0,0,320,160,C.k);const stats=['HP '+S.hp+'/'+S.max,'ATK '+S.atk,'ARM '+S.arm,'$ '+S.gold,'LUCK '+(S.luck>=0?'+':'')+S.luck,'TURN '+S.turn];ctx.font='bold 7px monospace';ctx.textBaseline='top';ctx.textAlign='center';for(let i=0;i<6;i++){ctx.fillStyle=i===0?C.green:C.cream;ctx.fillText(stats[i],(i+.5)*(320/6),4)}ctx.textAlign='left';for(let y=0;y<H;y++)for(let x=0;x<W;x++){const X=x*T,Y=16+y*T;if(wall(x,y)){R(X,Y,T,T,C.cream);R(X+2,Y+2,5,3,C.dim);R(X+9,Y+8,5,3,C.dim)}else{R(X,Y,T,T,'#10110e');R(X+7,Y+7,1,1,C.dim)}}for(const f of S.food)sprite('food',f.x*T+3,16+f.y*T+4);for(const q of S.coin)sprite('coin',q.x*T+4,16+q.y*T+4);for(const i of S.items)sprite('magic',i.x*T+3,16+i.y*T+3);sprite('exit',S.exit.x*T+2,16+S.exit.y*T+2);for(const t of S.traps.filter(v=>v.shown))sprite('trap',t.x*T+2,16+t.y*T+2);for(const e of S.enemies)sprite(e.t,e.x*T+2,16+e.y*T+2);sprite('hero',S.p.x*T+2,16+S.p.y*T+1);R(PANEL,16,320-PANEL,128,C.k);ctx.strokeStyle=C.cream;ctx.strokeRect(PANEL+1,17,320-PANEL-2,126);ctx.font='bold 9px monospace';const verbs=['1 MOVE','2 MOVE','3 SEARCH','4 ATTACK','5 ATTACK','6 REST'];verbs.forEach((v,i)=>{const yy=28+i*18;if(S.last===i+1){R(PANEL+6,yy-2,72,13,C.cream);ctx.fillStyle=C.k}else ctx.fillStyle=C.cream;ctx.fillText(v,PANEL+10,yy)})}
+function fallbackSprite(kind,x,y){const P={hero:['001100','011110','011100','001100','011110','101101','001100'],g:['100001','011110','111111','101101','011110','101101'],w:['001100','011110','001100','011110','101101','001100'],j:['011110','001100','011110','111111','001100','101101'],t:['111111','101101','111111','011110','101101','101101'],n:['011110','110011','011110','001100','111111','101101'],s:['011110','110011','011110','001100','011110','101101'],b:['111111','101101','111111','011110','111111','101101'],food:['001100','011110','111111','011110'],coin:['0110','1001','1011','0110'],exit:['111111','100001','101101','100001','111111'],trap:['001100','011110','111111','011110','101101'],charm:['001100','011110','111111','011110','001100'],curse:['011110','111111','101101','011110'],ring:['0110','1001','1001','0110'],orb:['001100','011110','111111','011110']};const a=P[kind]||P.g;let col=(kind==='hero'||kind==='s'||kind==='coin'||kind==='exit'||kind==='charm'||kind==='ring')?C.cream:(kind==='food'||kind==='orb'?C.green:C.red);for(let j=0;j<a.length;j++)for(let i=0;i<a[j].length;i++)if(a[j][i]==='1')R(x+i*2,y+j*2,2,2,col);if(kind==='hero'){R(x+2,y,8,2,C.green);R(x+10,y+4,2,4,C.green)}}
+function sprite(kind,x,y){const ht=HEX_TILE[kind];if(ht&&drawHex(ht.sheet,ht.i,x,y,ht.tint)){if(kind==='hero')R(x+1,y+1,4,2,C.green);return}fallbackSprite(kind,x,y)}
+function itemKind(i){return i.t==='curse'?'curse':i.t==='ring'?'ring':i.t==='orb'?'orb':'charm'}
+function draw(){R(0,0,320,160,C.k);const stats=['HP '+S.hp+'/'+S.max,'ATK '+S.atk,'ARM '+S.arm,'$ '+S.gold,'LUCK '+(S.luck>=0?'+':'')+S.luck,'TURN '+S.turn];ctx.font='bold 7px monospace';ctx.textBaseline='top';ctx.textAlign='center';for(let i=0;i<6;i++){ctx.fillStyle=i===0?C.green:C.cream;ctx.fillText(stats[i],(i+.5)*(320/6),4)}ctx.textAlign='left';for(let y=0;y<H;y++)for(let x=0;x<W;x++){const X=x*T,Y=16+y*T;if(wall(x,y)){R(X,Y,T,T,C.cream);R(X+2,Y+2,5,3,C.dim);R(X+9,Y+8,5,3,C.dim)}else{R(X,Y,T,T,'#10110e');R(X+7,Y+7,1,1,C.dim)}}for(const f of S.food)sprite('food',f.x*T,16+f.y*T);for(const q of S.coin)sprite('coin',q.x*T,16+q.y*T);for(const i of S.items)sprite(itemKind(i),i.x*T,16+i.y*T);sprite('exit',S.exit.x*T,16+S.exit.y*T);for(const t of S.traps.filter(v=>v.shown))sprite('trap',t.x*T,16+t.y*T);for(const e of S.enemies)sprite(e.t,e.x*T,16+e.y*T);sprite('hero',S.p.x*T,16+S.p.y*T);R(PANEL,16,320-PANEL,128,C.k);ctx.strokeStyle=C.cream;ctx.strokeRect(PANEL+1,17,320-PANEL-2,126);ctx.font='bold 9px monospace';const verbs=['1 MOVE','2 MOVE','3 SEARCH','4 ATTACK','5 ATTACK','6 REST'];verbs.forEach((v,i)=>{const yy=28+i*18;if(S.last===i+1){R(PANEL+6,yy-2,72,13,C.cream);ctx.fillStyle=C.k}else ctx.fillStyle=C.cream;ctx.fillText(v,PANEL+10,yy)})}
 resetRun();
 })();
 </script>
