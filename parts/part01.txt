@@ -1,0 +1,95 @@
+nner"><img alt="ROLL 1dADVENTURE banner" src="https://roll-1deverything-uwbs4c.v2.appdeploy.ai/resources/banner.png"></div>
+  <canvas id="cv" width="320" height="160" aria-label="ROLL 1dEVERYTHING"></canvas>
+  <div id="log" aria-live="polite">Tap the die.</div>
+  <div id="rollSpace">
+    <div id="die" role="button" tabindex="0" aria-label="Roll die">
+      <span class="pip p1"></span><span class="pip p2"></span><span class="pip p3"></span>
+      <span class="pip p4"></span><span class="pip p5"></span><span class="pip p6"></span>
+      <span class="pip p7"></span><span class="pip p8"></span><span class="pip p9"></span>
+    </div>
+  </div>
+</div>
+<script>
+(()=>{
+'use strict';
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+ctx.imageSmoothingEnabled=false;
+const space=document.getElementById('rollSpace');
+const die=document.getElementById('die');
+const log=document.getElementById('log');
+const pips=[...document.querySelectorAll('.pip')];
+const C={k:'#080907',cream:'#f4f4ef',green:'#55b95b',red:'#df4b42',gold:'#e6b83f',blue:'#4b8ee8',dim:'#34382d'};
+let T=16,W=13,H=8;const PANEL=216;
+let ACTION=['MOVE','MOVE','SEARCH','ATTACK','ATTACK','REST'];
+const FACE={1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]};
+const SETUP_ACTIONS=['MOVE','ATTACK','SEARCH','REST'];let setupFaces=[...ACTION];const SETUP_PIPS={1:[[50,50]],2:[[28,28],[72,72]],3:[[28,28],[50,50],[72,72]],4:[[28,28],[72,28],[28,72],[72,72]],5:[[28,28],[72,28],[50,50],[28,72],[72,72]],6:[[28,25],[72,25],[28,50],[72,50],[28,75],[72,75]]};function renderSetup(){const host=document.getElementById('faces'),start=document.getElementById('startRun'),err=document.getElementById('setupError');host.innerHTML='';setupFaces.forEach((action,i)=>{const b=document.createElement('button');b.type='button';b.className='faceBtn';b.setAttribute('aria-label','Die face '+(i+1)+': '+action);const die=document.createElement('span');die.className='setupDie';for(const [x,y] of SETUP_PIPS[i+1]){const p=document.createElement('i');p.className='setupPip';p.style.left=x+'%';p.style.top=y+'%';die.appendChild(p)}const verb=document.createElement('span');verb.className='setupVerb';verb.textContent=action;b.append(die,verb);b.addEventListener('click',()=>{const n=(SETUP_ACTIONS.indexOf(setupFaces[i])+1)%SETUP_ACTIONS.length;setupFaces[i]=SETUP_ACTIONS[n];renderSetup()});host.appendChild(b)});const ok=setupFaces.includes('MOVE');start.disabled=!ok;err.textContent=ok?'':'NEED AT LEAST 1 MOVE.'}function initSetup(){const setup=document.getElementById('setup'),game=document.getElementById('game'),start=document.getElementById('startRun');setup.style.display='block';game.style.display='none';renderSetup();start.addEventListener('click',()=>{if(!setupFaces.includes('MOVE'))return;ACTION=setupFaces.slice();setup.style.display='none';game.style.display='block';resetRun()},{once:true})}let MAP=['#############','#...........#','#.###..##...#','#.....#.....#','#..##....#..#','#.......##..#','#...........#','#############'];
+const LEVELS=[
+ {name:'THE DAMP FOYER',food:[{x:3,y:1}],coin:[{x:10,y:1}],items:[{x:2,y:6,t:'charm',name:'LUCKY RABBIT FOOT'}],loot:[{x:1,y:3,t:'gold',name:'LOOSE PURSE',shown:false},{x:7,y:5,t:'potion',name:'MYSTERY TONIC',shown:false},{x:10,y:6,t:'weapon',name:'BENT SWORD',shown:false}],exit:{x:11,y:6},traps:[{x:4,y:1,shown:false}],enemies:[{x:6,y:1,hp:4,t:'g',name:'GOBLIN INTERN'},{x:9,y:4,hp:4,t:'w',name:'APPRENTICE WIZARD'}]},
+ {name:'THE QUESTIONABLE LOUNGE',food:[{x:2,y:6}],coin:[{x:9,y:1}],items:[{x:5,y:6,t:'curse',name:'CURSED TIARA'},{x:10,y:5,t:'ring',name:'RING OF PROBABLY FORTUNE'}],loot:[{x:4,y:3,t:'gold',name:'TILL MONEY',shown:false},{x:7,y:6,t:'armour',name:'DUBIOUS MAIL',shown:false},{x:10,y:3,t:'item',name:'LUCKY TOE',shown:false}],exit:{x:11,y:6},traps:[{x:7,y:5,shown:false}],enemies:[{x:6,y:1,hp:5,t:'j',name:'SAUCY ENCHANTRESS'},{x:9,y:4,hp:7,t:'t',name:'TROLL TOLL COLLECTOR'}]},
+ {name:'HUMAN RESOURCES',food:[{x:10,y:1}],coin:[{x:2,y:6}],items:[{x:4,y:5,t:'orb',name:'ORB OF BETTER ODDS'}],loot:[{x:3,y:3,t:'potion',name:'RED BOTTLE',shown:false},{x:6,y:5,t:'weapon',name:'OFFICE AXE',shown:false},{x:10,y:4,t:'gold',name:'EXPENSES CLAIM',shown:false}],exit:{x:11,y:6},traps:[{x:7,y:6,shown:false}],enemies:[{x:6,y:1,hp:8,t:'n',name:'NECROMANCER'},{x:9,y:4,hp:10,t:'b',name:'DUNGEON MANAGER'}]}
+];
+
+// Hexany Ives, Hexany's Roguelike Tiles 0.3.0 — CC0 1.0.
+// Pinned mirror commit so the art does not silently change underneath the build.
+const HEX_BASE='https://raw.githubusercontent.com/luciusmagn/immortal-coil/94f942b0b412b5e55748c2eade0e71f204e2011d/assets/tiles/hexany/Tilesheets/Transparent/';
+const HEX_URL={
+ creatures:HEX_BASE+'creatures_transparent.png',
+ general:HEX_BASE+'general_transparent.png',
+ items:HEX_BASE+'items_transparent.png'
+};
+const HEX_COLS={creatures:16,general:32,items:24};
+const HEX_TILE={
+ hero:{sheet:'creatures',i:0,tint:C.blue},
+ g:{sheet:'creatures',i:54,tint:C.red},
+ w:{sheet:'creatures',i:56,tint:C.red},
+ j:{sheet:'creatures',i:10,tint:C.red},
+ t:{sheet:'creatures',i:64,tint:C.red},
+ n:{sheet:'creatures',i:112,tint:C.red},
+ s:{sheet:'creatures',i:96,tint:C.red},
+ b:{sheet:'creatures',i:240,tint:C.red},
+ food:{sheet:'items',i:58,tint:C.green},
+ coin:{sheet:'items',i:85,tint:C.gold},
+ charm:{sheet:'items',i:37,tint:C.gold},
+ curse:{sheet:'items',i:95,tint:C.gold},
+ ring:{sheet:'items',i:100,tint:C.gold},
+ orb:{sheet:'items',i:104,tint:C.gold},
+ exit:{sheet:'general',i:2,tint:C.cream},
+ trap:{sheet:'general',i:58,tint:C.red}
+};
+const HEX_IMG={};
+const tintCanvas=document.createElement('canvas');
+tintCanvas.width=tintCanvas.height=16;
+const tintCtx=tintCanvas.getContext('2d');
+tintCtx.imageSmoothingEnabled=false;
+for(const [key,src] of Object.entries(HEX_URL)){
+ const img=new Image();
+ img.crossOrigin='anonymous';
+ img.onload=()=>draw();
+ img.onerror=()=>console.warn('Hexany sheet failed to load:',key);
+ img.src=src;
+ HEX_IMG[key]=img;
+}
+function drawHex(sheet,index,x,y,tint){
+ const img=HEX_IMG[sheet];
+ if(!img||!img.complete||!img.naturalWidth)return false;
+ const cols=HEX_COLS[sheet],sx=(index%cols)*16,sy=Math.floor(index/cols)*16;
+ tintCtx.clearRect(0,0,16,16);
+ tintCtx.globalCompositeOperation='source-over';
+ tintCtx.drawImage(img,sx,sy,16,16,0,0,16,16);
+ tintCtx.globalCompositeOperation='source-in';
+ tintCtx.fillStyle=tint;
+ tintCtx.fillRect(0,0,16,16);
+ tintCtx.globalCompositeOperation='source-over';
+ const ds=Math.min(16,typeof T==='number'?T:16);
+ const ox=Math.floor(((typeof T==='number'?T:16)-ds)/2),oy=ox;
+ ctx.imageSmoothingEnabled=false;
+ ctx.drawImage(tintCanvas,x+ox,y+oy,ds,ds);
+ return true;
+}
+
+let S,rolling=false,side='left',dieX=0,audio=null;
+const dist=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
+const wall=(x,y)=>x<0||y<0||x>=W||y>=H||!MAP[y]||MAP[y][x]==='#';
+function setFace(n){pips.forEach((p,i)=>p.style.display=FACE[n].includes(i+1)?'block':'none')}
+function setDieTransform(x,rot=0){dieX=x;die.style.transform=`translate3d(${x}px,0,0) rotat
