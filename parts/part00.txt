@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>ROLL 1dEVERYTHING</title>
+<style>
+:root{--ink:#080907;--cream:#f4f4ef;--green:#55b95b;--red:#df4b42;--gold:#e6b83f;--blue:#4b8ee8;--dim:#34382d}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--cream);font-family:monospace;touch-action:manipulation}
+#game{display:none;width:min(100vw,736px);margin:0 auto;padding:8px}#setup{width:min(100vw,736px);margin:0 auto;padding:12px}#setup h1{font-size:18px;margin:4px 0 8px}#setup p{font:700 12px/1.35 monospace;margin:5px 0 10px}#setup .goal{color:var(--green)}#faces{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.faceBtn,#startRun{touch-action:manipulation}.faceBtn{border:0;background:transparent;color:var(--cream);font:700 11px monospace;padding:0;display:flex;flex-direction:column;align-items:center;gap:5px}.setupDie{width:58px;height:58px;background:var(--cream);border-radius:7px;position:relative;display:block}.setupPip{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--ink);transform:translate(-50%,-50%)}.setupVerb{min-height:14px}.faceBtn:active .setupDie{transform:translateY(1px)}#startRun{min-height:50px;border:2px solid var(--cream);font:700 13px monospace}#startRun{width:100%;margin-top:10px;background:var(--cream);color:var(--ink)}#startRun:disabled{opacity:.35}#setupError{min-height:18px;color:var(--red)}
+
+#titleBanner{position:relative;height:28px;margin:0 12px 5px;background:#f4f4ef;color:#080907;display:flex;align-items:center;justify-content:center;font:900 15px/1 monospace;letter-spacing:.4px;border:2px solid #080907;outline:2px solid #f4f4ef;image-rendering:pixelated}
+#titleBanner:before,#titleBanner:after{content:"";position:absolute;top:5px;width:14px;height:18px;background:#f4f4ef;z-index:-1}
+#titleBanner:before{left:-10px;clip-path:polygon(0 0,100% 0,75% 50%,100% 100%,0 100%,28% 50%)}
+#titleBanner:after{right:-10px;clip-path:polygon(0 0,100% 0,72% 50%,100% 100%,0 100%,25% 50%);transform:scaleX(-1)}
+canvas{display:block;width:100%;aspect-ratio:2/1;image-rendering:pixelated;background:var(--ink);border:2px solid var(--cream)}
+#log{min-height:42px;margin-top:8px;font:700 14px/1.25 monospace;display:flex;align-items:center}
+#rollSpace{position:relative;width:100%;height:104px;margin-top:2px;overflow:hidden;background:transparent;border:0;outline:0}
+#die{position:absolute;left:0;top:2px;width:100px;height:100px;background:var(--cream);border-radius:10px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;transform:translate3d(0,0,0);will-change:transform}
+#die:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.pip{position:absolute;width:16px;height:16px;background:var(--ink);border-radius:50%;display:none;transform:translate(-50%,-50%);pointer-events:none}
+.p1{left:25%;top:25%}.p2{left:50%;top:25%}.p3{left:75%;top:25%}
+.p4{left:25%;top:50%}.p5{left:50%;top:50%}.p6{left:75%;top:50%}
+.p7{left:25%;top:75%}.p8{left:50%;top:75%}.p9{left:75%;top:75%}
+
+/* taller 1-bit adventure banner */
+#titleBanner{height:56px;margin-bottom:5px;font-size:15px;overflow:hidden}
+#titleBanner:before,#titleBanner:after{top:14px;height:28px}
+#titleBanner span{position:relative;z-index:3}
+.bannerAdventure{position:absolute;top:0;height:100%;width:72px;display:flex;align-items:center;justify-content:space-around;z-index:2}
+.bannerAdventure.left{left:4px}
+.bannerAdventure.right{right:4px}
+.bannerAdventure i{position:relative;display:block;width:15px;height:15px}
+.bannerAdventure .star:before{content:"";position:absolute;left:6px;top:1px;width:3px;height:13px;background:#080907}
+.bannerAdventure .star:after{content:"";position:absolute;left:1px;top:6px;width:13px;height:3px;background:#080907}
+.bannerAdventure .sword{width:18px;transform:rotate(-42deg)}
+.bannerAdventure .sword:before{content:"";position:absolute;left:8px;top:0;width:3px;height:13px;background:#080907;box-shadow:0 12px 0 #080907}
+.bannerAdventure .sword:after{content:"";position:absolute;left:3px;top:11px;width:13px;height:3px;background:#080907}
+.bannerAdventure .chest{border:3px solid #080907;box-sizing:border-box;height:12px;margin-top:4px}
+.bannerAdventure .chest:before{content:"";position:absolute;left:-3px;top:-7px;width:15px;height:6px;border:3px solid #080907;border-bottom:0;box-sizing:border-box}
+.bannerAdventure .chest:after{content:"";position:absolute;left:4px;top:3px;width:3px;height:4px;background:#080907}
+.bannerAdventure .skull{border:3px solid #080907;border-radius:5px 5px 2px 2px;box-sizing:border-box}
+.bannerAdventure .skull:before{content:"";position:absolute;left:2px;top:3px;width:3px;height:3px;background:#080907;box-shadow:6px 0 0 #080907}
+.bannerAdventure .skull:after{content:"";position:absolute;left:4px;top:10px;width:5px;height:4px;background:#080907}
+.bannerAdventure .key:before{content:"";position:absolute;left:0;top:1px;width:7px;height:7px;border:3px solid #080907;border-radius:50%;box-sizing:border-box}
+.bannerAdventure .key:after{content:"";position:absolute;left:6px;top:6px;width:10px;height:3px;background:#080907;box-shadow:6px 3px 0 -1px #080907}
+@media(max-width:350px){.bannerAdventure{width:57px}.bannerAdventure .star{display:none}#titleBanner{font-size:14px}}
+
+
+/* full-width illustrated banner refinement */
+#titleBanner{margin-left:0;margin-right:0;height:58px;outline:none;border-left:0;border-right:0}
+#titleBanner:before,#titleBanner:after{display:none}
+.bannerAdventure{width:92px}
+.bannerAdventure.left{left:7px}
+.bannerAdventure.right{right:7px}
+.bannerAdventure:before{content:"";position:absolute;bottom:6px;left:0;width:100%;height:3px;background:#080907;box-shadow:8px -4px 0 -1px #080907,18px -7px 0 -1px #080907,66px -5px 0 -1px #080907,78px -9px 0 -1px #080907}
+.bannerAdventure .sword,.bannerAdventure .chest,.bannerAdventure .skull,.bannerAdventure .key{transform-origin:center}
+.bannerAdventure .chest{transform:scale(1.15)}
+.bannerAdventure .skull{transform:scale(1.15)}
+.bannerAdventure .key{transform:scale(1.1)}
+@media(max-width:350px){.bannerAdventure{width:68px}.bannerAdventure:before{display:none}}
+
+
+/* user-uploaded banner: replaces previous generated/CSS decoration */
+#titleBanner{
+  width:100%; height:auto; margin:0 0 5px 0; padding:0;
+  border:0; outline:0; background:#080907; overflow:hidden;
+  display:block;
+}
+#titleBanner img{
+  display:block; width:100%; height:auto; max-height:none;
+  image-rendering:auto;
+}
+#titleBanner:before,#titleBanner:after,.bannerAdventure{display:none!important}
+
+</style>
+</head>
+<body>
+<div id='setup'><h1>BUILD YOUR DIE</h1><p class='goal'>GOAL: GET RICH. GO DEEPER.</p><p>SET ALL 6 FACES. TAP A FACE TO CHANGE IT.</p><div id='faces'></div><div id='setupError' aria-live='polite'></div><button id='startRun' type='button'>START RUN</button></div>
+<div id="game">
+  <div id="titleBa
