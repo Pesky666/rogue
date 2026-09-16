@@ -1,0 +1,26 @@
+orSpec(depth);W=q.w;H=q.h;T=Math.max(9,Math.min(16,Math.floor(128/H),Math.floor(216/W)));MAP=buildOpenMap(W,H,depth);
+ let cells=freeCells();cells.sort((a,b)=>dist({x:1,y:1},a)-dist({x:1,y:1},b));
+ const openNeighbours=c=>[[0,-1],[1,0],[0,1],[-1,0]].filter(([dx,dy])=>!wall(c.x+dx,c.y+dy)).length;
+ const far=cells.filter(c=>openNeighbours(c)>=2).sort((a,b)=>dist({x:1,y:1},b)-dist({x:1,y:1},a));
+ const exit=far.length?far[Math.floor(Math.random()*Math.min(8,far.length))]:takeCell(cells,true);
+ const exitIdx=cells.findIndex(c=>c.x===exit.x&&c.y===exit.y);if(exitIdx>=0)cells.splice(exitIdx,1);
+ const food=[],coin=[],items=[],loot=[],traps=[],enemies=[];
+ for(let i=0;i<q.food;i++)food.push(takeCell(cells));
+ for(let i=0;i<q.coins;i++)coin.push(takeCell(cells));
+ const lootTypes=['gold','potion','weapon','armour','item'];
+ for(let i=0;i<q.loot;i++){const c=takeCell(cells);loot.push({...c,t:lootTypes[(depth+i)%lootTypes.length],name:['LOOSE PURSE','MYSTERY TONIC','BENT SWORD','DUBIOUS MAIL','LUCKY TOE'][(depth+i)%5],shown:false})}
+ for(let i=0;i<q.chests;i++){const c=takeCell(cells);loot.push({...c,t:'chest',name:['DAMP CHEST','LOST LOCKBOX','ODD STRONGBOX'][i%3],shown:false})}
+ for(let i=0;i<q.traps;i++)traps.push({...takeCell(cells),shown:false});
+ for(let i=0;i<q.enemies;i++){const base=ENEMY_POOL[(depth+i)%ENEMY_POOL.length],c=takeCell(cells,true);const scale=Math.floor(depth/3);enemies.push({...c,t:base.t,name:base.name,hp:base.hp+scale,max:base.hp+scale})}
+ return{food,coin,items,loot,traps,enemies,exit};
+}
+loadDepth=function(){const F=makeFloor(S.depth);S.p={x:1,y:1};S.food=F.food;S.coin=F.coin;S.items=F.items;S.loot=F.loot;S.exit=F.exit;S.traps=F.traps;S.enemies=F.enemies;S.mode='play';S.last=0;S.charmed=0;S.zapFx=null;draw()};
+collect=function(){
+ let i=S.food.findIndex(v=>v.x===S.p.x&&v.y===S.p.y);if(i>=0){const old=S.hp;S.hp=Math.min(S.max,S.hp+4);S.food.splice(i,1);S.msg+=' Food +'+(S.hp-old)+' HP.'}
+ i=S.coin.findIndex(v=>v.x===S.p.x&&v.y===S.p.y);if(i>=0){S.coin.splice(i,1);S.gold++;S.msg+=' Coin collected.'}
+ const lo=lootAt(S.p.x,S.p.y);if(lo){S.loot=S.loot.filter(v=>v!==lo);if(lo.t==='chest'){S.mode='chest';S.msg+=' '+lo.name+' found — next roll opens it.';sfx('reward');return}if(lo.t==='gold'){S.gold+=2;S.msg+=' '+lo.name+': +2 Gold.'}else if(lo.t==='potion'){const old=S.hp;S.hp=Math.min(S.max,S.hp+4);S.msg+=' '+lo.name+': +'+(S.hp-old)+' HP.'}else if(lo.t==='weapon'){S.atk++;S.msg+=' '+lo.name+': ATK +1.'}else if(lo.t==='armour'){S.arm++;S.msg+=' '+lo.name+': ARM +1.'}else{S.luck++;S.msg+=' '+lo.name+': Luck +1.'}sfx('reward')}
+ const tr=S.traps.find(t=>t.x===S.p.x&&t.y===S.p.y);if(tr){let d=3;if(S.luck>=2&&Math.random()<.35){d=0;S.msg+=' Luck avoids the Trap.'}S.hp-=d;S.traps=S.traps.filter(v=>v!==tr);if(d){S.msg+=' Trap! -'+d+' HP.';sfx('hurt')}}
+ if(S.p.x===S.exit.x&&S.p.y===S.exit.y){S.depth++;S.msg='Descending to FLOOR '+(S.depth+1)+'.';loadDepth()}
+};
+const v7Draw=draw;
+draw=function(){v7Draw();if(!S)return;R(0,0,320,16,C.k);const stats=['HP '+S.hp+'/'+S.max,'ATK '+S.atk,'ARM '+S.arm,'GOLD '+S.gold,'LUCK '+(S.luck>=0?'+':'')+S.luck,'FLOOR '+(S.depth+1)];ctx.font='bold 8px monospace';ctx.textBaseline='top';ctx.textAlign='center';for(let i=0;i<stats.length;i++){ctx.fillStyle=i===0?C.green:C.cream;ctx.fillText(stats[i],(i+.5)*(320/stats.length),4)}R(0,144,PANEL,16,C.k);ctx.font='bold 8px monospace';ctx.textAlign='left';ctx.fillStyle=C.cream;ctx.fillText('LVL '+S.level,4,149);ctx.strokeStyle=C.cream;ctx.strokeRect(42,148,112,9);const xpW=Math.floor(110*Math.max(0,Math.min(1,S.xp/S.xpNeed)));if(xpW)R(43,149,xpW,7,C.green);ctx.fillText(S.xp+'/'+S.xpNeed,159,149);ctx.fillText('T'+S.turn,190,149)};
