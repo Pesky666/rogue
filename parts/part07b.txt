@@ -1,0 +1,52 @@
+    }else if(!S.todayBest||!S.todayBest.length){
+      ctx.fillText('NO SCORES YET',PANEL+8,49);
+    }else{
+      S.todayBest.slice(0,5).forEach((gold,i)=>{
+        ctx.fillText((i+1)+'  '+gold+' GOLD',PANEL+8,49+i*18);
+      });
+    }
+  }else{
+    for(let i=0;i<6;i++){
+      const yy=25+i*22;
+      if(S.last===i+1){R(PANEL+5,yy-2,320-PANEL-11,14,C.cream);ctx.fillStyle=C.k}else ctx.fillStyle=C.cream;
+      ctx.fillText((i+1)+' '+faceLabel(i),PANEL+8,yy);
+    }
+  }
+};
+
+initSetup();
+})();
+</script>
+
+<script>
+const CC0_SFX = {
+  move: new Audio("https://roll-1deverything-uwbs4c.v2.appdeploy.ai/resources/steps.ogg"),
+  attack: new Audio("https://roll-1deverything-uwbs4c.v2.appdeploy.ai/resources/punch.ogg"),
+  hurt: new Audio("https://roll-1deverything-uwbs4c.v2.appdeploy.ai/resources/hurt.ogg"),
+  reward: new Audio("https://roll-1deverything-uwbs4c.v2.appdeploy.ai/resources/item.ogg"),
+  door: new Audio("https://roll-1deverything-uwbs4c.v2.appdeploy.ai/resources/door.ogg")
+};
+for (const a of Object.values(CC0_SFX)) { a.preload='auto'; a.volume=0.48; }
+const _cc0Play = (k) => {
+  const src=CC0_SFX[k]; if(!src) return;
+  const a=src.cloneNode(); a.volume=src.volume;
+  a.play().catch(()=>{});
+};
+const _oldSfx = sfx;
+sfx = function(kind) {
+  if (kind==='move') return _cc0Play('move');
+  if (kind==='attack') return _cc0Play('attack');
+  if (kind==='hurt') return _cc0Play('hurt');
+  if (kind==='reward') return _cc0Play('reward');
+  return _oldSfx(kind);
+};
+const _oldCollect = collect;
+collect = function() {
+  const d0=S.depth;
+  _oldCollect();
+  if(S.depth!==d0) _cc0Play('door');
+};
+</script>
+
+</body>
+</html>
