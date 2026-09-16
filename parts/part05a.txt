@@ -1,0 +1,79 @@
+ local content pass: clearer HUD, trap attacks, searchable chests
+// Extra finite content. Chests are hidden until SEARCH reveals them.
+LEVELS[0].food.push({x:5,y:3}); LEVELS[0].coin.push({x:8,y:6});
+LEVELS[0].loot.push({x:3,y:4,t:'chest',name:'DAMP CHEST',shown:false},{x:10,y:3,t:'chest',name:'LOST LOCKBOX',shown:false});
+LEVELS[1].food.push({x:5,y:1}); LEVELS[1].coin.push({x:3,y:3});
+LEVELS[1].loot.push({x:1,y:4,t:'chest',name:'LOUNGE CHEST',shown:false},{x:11,y:3,t:'chest',name:'TROLL BOX',shown:false});
+LEVELS[2].food.push({x:8,y:3}); LEVELS[2].coin.push({x:5,y:3});
+LEVELS[2].loot.push({x:1,y:5,t:'chest',name:'HR STRONGBOX',shown:false},{x:10,y:6,t:'chest',name:'PETTY CASH CHEST',shown:false});
+
+const v5BaseSprite=sprite;
+sprite=function(kind,x,y){
+  if(kind==='chest'){
+    R(x+2,y+5,12,9,C.gold);R(x+3,y+3,10,3,C.gold);R(x+4,y+7,8,1,C.k);R(x+7,y+8,2,3,C.cream);return;
+  }
+  return v5BaseSprite(kind,x,y)
+};
+itemKind=function(i){return i.t==='chest'?'chest':i.t==='gold'?'coin':i.t==='potion'?'food':i.t==='weapon'?'orb':i.t==='armour'?'ring':i.t==='curse'?'curse':i.t==='ring'?'ring':i.t==='orb'?'orb':'charm'};
+
+const v5BaseCollect=collect;
+collect=function(){
+  const chest=lootAt(S.p.x,S.p.y);
+  if(chest&&chest.t==='chest'){
+    S.loot=S.loot.filter(v=>v!==chest);
+    S.mode='chest';
+    S.msg+=' '+chest.name+' found — next roll opens it.';
+    sfx('reward');
+    return;
+  }
+  v5BaseCollect();
+};
+
+function chestReward(n){
+  const names=['','OLD BLADE: ATK +1','TIN MAIL: ARM +1','MEAT PIE: +4 HP','COIN HOARD: +4 GOLD','ODD TALISMAN: LUCK +1','JACKPOT: +2 GOLD, FULL HEAL'];
+  if(n===1)S.atk++;
+  else if(n===2)S.arm++;
+  else if(n===3)S.hp=Math.min(S.max,S.hp+4);
+  else if(n===4)S.gold+=4;
+  else if(n===5)S.luck++;
+  else {S.gold+=2;S.hp=S.max}
+  return names[n];
+}
+
+const v5Resolve=resolve;
+resolve=function(n,rollMode){
+  if(rollMode==='chest'){
+    S.last=n;S.mode='play';S.msg='CHEST '+n+': '+chestReward(n)+'.';draw();say(S.msg+'');return;
+  }
+  return v5Resolve(n,rollMode)
+};
+
+const v5RollDie=rollDie;
+// Existing roller already preserves S.mode as rollMode; chest uses the ordinary fair d6.
+
+// ATTACK has a second use: if there is no adjacent enemy, smash one REVEALED adjacent trap.
+// Trap XP is finite and deliberately gives XP but no treasure reward.
+doAttack=function(bonus=0){
+  const near=S.enemies.filter(e=>dist(S.p,e)===1).sort((a,b)=>a.hp-b.hp);
+  if(!near.length){
+    const trap=S.traps.find(t=>t.shown&&dist(S.p,t)===1);
+    if(trap){
+      S.traps=S.traps.filter(v=>v!==trap);
+      const levels=metaGainXp(1);
+      if(levels){S.mode='levelup';S.msg='Trap smashed. +1 XP. LEVEL '+S.level+' — next roll upgrades that face.'}
+      else S.msg='Trap smashed. +1 XP.';
+      sfx('attack');return;
+    }
+    S.msg='No Enemy or revealed Trap adjacent.';sfx('attack');return;
+  }
+  const e=near[0];let d=S.atk+bonus;if(S.luck>0&&Math.random()<.08*S.luck)d++;e.hp-=d;S.msg=e.name+' takes '+d+' damage.';sfx('attack');
+  if(e.hp<=0){S.enemies=S.enemies.filter(v=>v!==e);const levels=metaGainXp(1);S.rewardQueued=true;if(levels){S.mode='levelup';S.msg=e.name+' defeated. LEVEL '+S.level+' — next roll upgrades that face.'}else{S.mode='reward';S.msg=e.name+' defeated — next roll is reward.'}sfx('reward')}
+};
+
+// Clearer, slightly larger HUD. Depth is a down-stair icon + current floor/total.
+const v5Draw=draw;
+draw=function(){
+  v5Draw(); if(!S)return;
+  // repaint top strip so old tiny stats do not show through
+  R(0,0,320,16,C.k);
+  const stats=['HP '+S.hp+'/'+S.max,'ATK '+S.atk,'ARM '+S.arm,'GOLD '+S.gold,'LUCK '+(S.luck>=0?'+':'')+S.luck,'▼ '+(S.depth+1)+'/'+LEVELS.length,'LV '+S.level];
