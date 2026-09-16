@@ -1,0 +1,53 @@
+e='dead';S.msg='YOU DIED.';onGameOver()}
+};
+
+const SCORE_URL='https://roll-scores.ritual-x-daily.workers.dev/scores';
+
+async function refreshTodaysBest(){
+  try{
+    const r=await fetch(SCORE_URL,{cache:'no-store'});
+    if(!r.ok)throw new Error('scores '+r.status);
+    const rows=await r.json();
+    S.todayBest=Array.isArray(rows)?rows.slice(0,5).map(v=>Math.max(0,Math.floor(Number(v.gold)||0))):[];
+    S.scoreStatus='ready';
+  }catch(err){
+    console.warn('Leaderboard fetch failed',err);
+    S.scoreStatus='offline';
+  }
+  draw();
+}
+
+async function onGameOver(){
+  if(!S||S.scoreSubmitted)return;
+  S.scoreSubmitted=true;
+  S.scoreStatus='loading';
+  S.todayBest=[];
+  draw();
+  try{
+    const r=await fetch(SCORE_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({gold:Math.max(0,Math.floor(S.gold||0))})
+    });
+    if(!r.ok)throw new Error('submit '+r.status);
+  }catch(err){
+    console.warn('Score submit failed',err);
+  }
+  await refreshTodaysBest();
+}
+
+const v11Draw=draw;
+draw=function(){
+  v11Draw();if(!S)return;
+  // Replace the old panel and its extra horizontal seam with one continuous box.
+  R(PANEL,16,320-PANEL,144,C.k);
+  ctx.strokeStyle=C.cream;ctx.lineWidth=1;ctx.strokeRect(PANEL+1,17,320-PANEL-2,142);
+  ctx.font='bold 9px monospace';ctx.textBaseline='top';ctx.textAlign='left';
+  if(S.mode==='dead'){
+    ctx.fillStyle=C.gold;ctx.font='bold 9px monospace';
+    ctx.fillText("TODAY'S BEST",PANEL+8,25);
+    ctx.fillStyle=C.cream;ctx.font='bold 9px monospace';
+    if(S.scoreStatus==='loading'){
+      ctx.fillText('LOADING...',PANEL+8,49);
+    }else if(S.scoreStatus==='offline'){
+      ctx.fillText('OFFLINE',PANEL+8,49);
