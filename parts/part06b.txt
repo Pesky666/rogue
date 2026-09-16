@@ -1,0 +1,59 @@
+
+// v10 LOCAL: verb panel joins the bottom edge; no other UI changes.
+const v10Draw=draw;
+draw=function(){
+  v10Draw();if(!S)return;
+  R(PANEL,144,320-PANEL,16,C.k);
+  ctx.strokeStyle=C.cream;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(PANEL+1,143);ctx.lineTo(PANEL+1,159);ctx.lineTo(319,159);ctx.lineTo(319,143);ctx.stroke();
+};
+
+
+// v11 LOCAL: distributed enemies, honest LOS aggro, cleaner full-height verb panel.
+function clearLOS(a,b){
+  let x0=a.x,y0=a.y,x1=b.x,y1=b.y;
+  let dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1,err=dx+dy;
+  while(!(x0===x1&&y0===y1)){
+    const e2=2*err;if(e2>=dy){err+=dy;x0+=sx}if(e2<=dx){err+=dx;y0+=sy}
+    if(x0===x1&&y0===y1)break;
+    if(wall(x0,y0))return false;
+  }
+  return true;
+}
+function staticOccupied(x,y){
+  return (S.exit&&S.exit.x===x&&S.exit.y===y)||S.food.some(v=>v.x===x&&v.y===y)||S.coin.some(v=>v.x===x&&v.y===y)||S.items.some(v=>v.x===x&&v.y===y)||S.loot.some(v=>v.shown&&v.x===x&&v.y===y)||S.traps.some(v=>v.shown&&v.x===x&&v.y===y);
+}
+function roomIndex(c){
+  if(W>=24&&H>=13)return (c.y<6?0:2)+(c.x<12?0:1);
+  return 0;
+}
+const v11MakeFloor=makeFloor;
+makeFloor=function(depth){
+  const F=v11MakeFloor(depth);
+  if(W>=24&&H>=13&&F.enemies.length>1){
+    // Re-place one enemy in each broad room, on unique empty floor cells.
+    const blocked=new Set();
+    const add=(v)=>blocked.add(v.x+','+v.y);
+    add({x:1,y:1});add(F.exit);F.food.forEach(add);F.coin.forEach(add);F.items.forEach(add);F.loot.forEach(add);F.traps.forEach(add);
+    const pools=[[],[],[],[]];
+    for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++)if(!wall(x,y)&&!blocked.has(x+','+y))pools[roomIndex({x,y})].push({x,y});
+    F.enemies.forEach((e,i)=>{const pool=pools[i%4];if(pool.length){const c=pool.splice(Math.floor(Math.random()*pool.length),1)[0];e.x=c.x;e.y=c.y;blocked.add(c.x+','+c.y)}});
+  }
+  return F;
+};
+monsterTurn=function(){
+  if(S.mode!=='play')return;
+  const dirs=[[0,-1],[1,0],[0,1],[-1,0]];
+  for(const e of [...S.enemies]){
+    const sees=clearLOS(e,S.p);
+    if(e.t==='j'&&dist(e,S.p)<=3&&sees){S.charmed=2;S.msg+=' Saucy Enchantress charms the hero.'}
+    if(e.t==='w'&&wizardHasLOS(e,S.p)){S.hp-=1;S.zapFx={wx:e.x,wy:e.y,px:S.p.x,py:S.p.y,until:performance.now()+320};S.msg+=' Wizard zaps -1 HP.';sfx('zap');continue}
+    if(e.t==='t'&&e.hp<e.max&&S.turn%2===0)e.hp++;
+    if(e.t==='n'&&S.turn%3===0&&S.enemies.length<5&&sees){const spot=dirs.map(([dx,dy])=>({x:e.x+dx,y:e.y+dy})).find(p=>!wall(p.x,p.y)&&!enemyAt(p.x,p.y)&&!staticOccupied(p.x,p.y)&&!(p.x===S.p.x&&p.y===S.p.y));if(spot){S.enemies.push({x:spot.x,y:spot.y,hp:3,max:3,t:'s',name:'REHIRED SKELETON'});S.msg+=' Necromancer rehires staff.';continue}}
+    if(dist(e,S.p)===1&&sees){let d=Math.max(1,2-S.arm);if(S.luck>0&&Math.random()<.05*S.luck)d=0;S.hp-=d;S.msg+=' '+e.name+(d?' hits '+d+'.':' misses thanks to Luck.');if(d)sfx('hurt');continue}
+    // Enemies only pursue when they can actually see the player. No wall-tracking.
+    if(!sees)continue;
+    const opts=dirs.map(([dx,dy])=>({x:e.x+dx,y:e.y+dy})).filter(p=>!wall(p.x,p.y)&&!enemyAt(p.x,p.y)&&!staticOccupied(p.x,p.y)&&!(p.x===S.p.x&&p.y===S.p.y));
+    opts.sort((a,b)=>dist(a,S.p)-dist(b,S.p));if(opts[0]&&dist(opts[0],S.p)<dist(e,S.p)){e.x=opts[0].x;e.y=opts[0].y}
+  }
+  if(S.charmed>0)S.charmed--;if(S.hp<=0){S.hp=0;S.mod
